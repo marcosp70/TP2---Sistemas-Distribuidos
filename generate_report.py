@@ -408,7 +408,7 @@ def draw_page_5(pdf, results_data):
     pdf.set_font("courier", "B", 10)
     pdf.set_text_color(31, 82, 255)
     # URL solicitada pelo enunciado do trabalho
-    pdf.cell(0, 6, "https://github.com/marco/SD-TP2-P2P-Symmetric", ln=1, align="L")
+    pdf.cell(0, 6, "https://github.com/marcosp70/TP2---Sistemas-Distribuidos", ln=1, align="L")
     
     pdf.ln(20)
     
