@@ -2,7 +2,7 @@
 
 Este repositório contém o código-fonte desenvolvido para o **Trabalho Prático 2** da disciplina de **Sistemas Distribuídos** do Centro Federal de Educação Tecnológica de Minas Gerais (CEFET-MG), período letivo 2025/2.
 
-O objetivo do projeto é a criação de um sistema simétrico e descentralizado de compartilhamento de arquivos P2P baseado em Sockets TCP multithreading em Python.
+O projeto consiste em um sistema simétrico e descentralizado de compartilhamento de arquivos P2P baseado em Sockets TCP multithreading em Python, desenvolvido utilizando **estritamente a biblioteca nativa do Python** (sem qualquer dependência externa ou necessidade de instalação via pip).
 
 ---
 
@@ -33,21 +33,16 @@ O sistema opera de forma puramente descentralizada, sem o uso de servidores cent
 *   `src/peer.py`: Implementação da lógica principal do nó peer (módulos cliente/servidor multithread, controle de bitfields e o protocolo de pacotes).
 *   `src/utils.py`: Funções utilitárias de hash SHA-256, fatiamento/remontagem física e geração de metadados JSON.
 *   `test_runner.py`: Script automatizado para simular concorrentemente os 6 cenários de rede exigidos no enunciado do trabalho (Tabela 1).
-*   `generate_report.py`: Script auxiliar usado para processar os resultados e gerar automaticamente o relatório de desempenho formatado.
-*   `requirements.txt`: Dependência de PDF (`fpdf2`).
 
 ---
 
 ## 🛠️ Como Executar os Testes
 
-Para instalar a biblioteca de geração de relatório:
-```bash
-pip install -r requirements.txt
-```
+O projeto **não possui dependências externas** e roda diretamente com a instalação padrão do Python 3.
 
 ### Rodando o Benchmarking em Lote (Cenários 1 a 6)
 O script de automação de testes criará arquivos binários aleatórios (de 10 KB a 20 MB), gerará os metadados na pasta temporária, inicializará os processos concorrentes e validará a integridade global em loopback local:
 ```bash
 python test_runner.py
 ```
-Isso produzirá o arquivo `test_results.json` contendo as velocidades e durações de cada nó na rede local.
+Isso validará o funcionamento de toda a rede concorrente e medirá as velocidades de transferência de cada nó.
