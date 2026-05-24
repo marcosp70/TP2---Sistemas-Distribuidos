@@ -1,0 +1,13 @@
+__pycache__/
+*.pyc
+temp/
+peer_*.log
+peer.log
+.idea/
+.vscode/
+
+# Ignorar enunciados, relatorios e resultados de testes
+SD_TP_2.pdf
+relatorio_tp2.pdf
+relatorio_tp2.tex
+test_results.json
