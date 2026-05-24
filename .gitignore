@@ -6,8 +6,18 @@ peer.log
 .idea/
 .vscode/
 
-# Ignorar enunciados, relatorios e resultados de testes
-SD_TP_2.pdf
-relatorio_tp2.pdf
-relatorio_tp2.tex
+# Ignorar arquivos temporarios de dados e testes
 test_results.json
+*.meta
+
+# Ignorar TODOS os PDFs (enunciados e relatorio compilado)
+*.pdf
+
+# Ignorar todos os arquivos auxiliares de compilacao LaTeX do Overleaf/Local
+*.aux
+*.out
+*.toc
+*.synctex.gz
+*.fls
+*.fdb_latexmk
+relatorio_tp2.tex
