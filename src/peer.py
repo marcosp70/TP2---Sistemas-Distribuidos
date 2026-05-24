@@ -32,7 +32,9 @@ class PeerConnection:
                 header = len(msg).to_bytes(4, byteorder='big')
                 self.sock.sendall(header + msg)
                 return True
-            except Exception:
+            except Exception as e:
+                import time
+                print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] Erro ao enviar mensagem do tipo {type_id} para {self.peer_id}: {e}", flush=True)
                 return False
 
 class PeerNode:
@@ -148,9 +150,12 @@ class PeerNode:
                 if not packet:
                     return None
                 data.extend(packet)
-            except socket.timeout:
-                continue
-            except Exception:
+            except socket.timeout as e:
+                if not self.is_running:
+                    return None
+                raise e
+            except Exception as e:
+                self.log(f"Erro em _recv_all ao receber dados (esperado {size} bytes, recebido {len(data)}): {e}")
                 return None
         return bytes(data)
 
@@ -254,45 +259,50 @@ class PeerNode:
             
             # 5. Loop de tratamento de mensagens do cliente (Servindo blocos)
             while self.is_running:
-                type_id, payload = self._recv_msg(sock)
-                if type_id is None:
-                    break
-                
-                if type_id == MSG_REQUEST:
-                    if len(payload) < 4:
-                        continue
-                    chunk_idx = int.from_bytes(payload[:4], byteorder='big')
+                try:
+                    type_id, payload = self._recv_msg(sock)
+                    if type_id is None:
+                        break
                     
-                    # Le e envia o bloco solicitado se tivermos ele
-                    has_chunk = False
-                    with self.lock:
-                        if chunk_idx < self.num_chunks:
-                            has_chunk = self.bitfield[chunk_idx]
+                    if type_id == MSG_REQUEST:
+                        if len(payload) < 4:
+                            continue
+                        chunk_idx = int.from_bytes(payload[:4], byteorder='big')
+                        
+                        # Le e envia o bloco solicitado se tivermos ele
+                        has_chunk = False
+                        with self.lock:
+                            if chunk_idx < self.num_chunks:
+                                has_chunk = self.bitfield[chunk_idx]
+                        
+                        if has_chunk:
+                            # Le do arquivo
+                            try:
+                                with open(self.file_path, 'rb') as f:
+                                    f.seek(chunk_idx * self.chunk_size)
+                                    chunk_data = f.read(self.chunk_size)
+                                
+                                # Envia bloco (PIECE: 4 bytes index + dados)
+                                piece_payload = chunk_idx.to_bytes(4, byteorder='big') + chunk_data
+                                conn.send(MSG_PIECE, piece_payload)
+                            except Exception as e:
+                                self.log(f"Erro ao ler bloco {chunk_idx} do arquivo para enviar: {e}")
+                        else:
+                            self.log(f"Vizinho {client_peer_id} solicitou bloco {chunk_idx} que nao possuimos!")
                     
-                    if has_chunk:
-                        # Le do arquivo
-                        try:
-                            with open(self.file_path, 'rb') as f:
-                                f.seek(chunk_idx * self.chunk_size)
-                                chunk_data = f.read(self.chunk_size)
-                            
-                            # Envia bloco (PIECE: 4 bytes index + dados)
-                            piece_payload = chunk_idx.to_bytes(4, byteorder='big') + chunk_data
-                            conn.send(MSG_PIECE, piece_payload)
-                        except Exception as e:
-                            self.log(f"Erro ao ler bloco {chunk_idx} do arquivo para enviar: {e}")
-                    else:
-                        self.log(f"Vizinho {client_peer_id} solicitou bloco {chunk_idx} que nao possuimos!")
-                
-                elif type_id == MSG_HAVE:
-                    if len(payload) < 4:
-                        continue
-                    have_idx = int.from_bytes(payload[:4], byteorder='big')
-                    # Apenas registra que o vizinho agora possui este bloco
-                    pass
+                    elif type_id == MSG_HAVE:
+                        if len(payload) < 4:
+                            continue
+                        have_idx = int.from_bytes(payload[:4], byteorder='big')
+                        # Apenas registra que o vizinho agora possui este bloco
+                        pass
+                except socket.timeout:
+                    continue
                     
         except Exception as e:
-            pass
+            self.log(f"ERRO CRITICO no tratamento de conexao de entrada: {e}")
+            import traceback
+            traceback.print_exc()
         finally:
             with self.lock:
                 if conn in self.active_connections:
@@ -355,7 +365,9 @@ class PeerNode:
                 sock.close()
                 return
             
-            neighbor_bitfield = [char == '1' for char in payload.decode('utf-8')]
+            bitfield_data = payload.decode('utf-8')
+            neighbor_bitfield = [char == '1' for char in bitfield_data]
+            self.log(f"Recebido bitfield do Vizinho {neighbor_peer_id}: {sum(neighbor_bitfield)}/{len(neighbor_bitfield)} blocos completos. String: {bitfield_data[:20]}...")
             
             # 4. Envia nosso bitfield
             with self.lock:
@@ -487,7 +499,9 @@ class PeerNode:
                         break
                 
         except Exception as e:
-            pass
+            self.log(f"ERRO CRITICO na conexao de saida: {e}")
+            import traceback
+            traceback.print_exc()
         finally:
             with self.lock:
                 if conn in self.active_connections:
