@@ -184,10 +184,8 @@ def main():
     scenarios = [
         {"id": 1, "name": "Cenario 1: 2 Peers, Bloco 1KB, File 10KB", "peers": 2, "block_size": 1024, "file_size": 10 * 1024},
         {"id": 2, "name": "Cenario 2: 4 Peers, Bloco 4KB, File 20KB", "peers": 4, "block_size": 4096, "file_size": 20 * 1024},
-        {"id": 3, "name": "Cenario 3: 4 Peers, Bloco 1KB, File 1MB", "peers": 4, "block_size": 1024, "file_size": 1 * 1024 * 1024},
-        {"id": 4, "name": "Cenario 4: 4 Peers, Bloco 4KB, File 5MB", "peers": 4, "block_size": 4096, "file_size": 5 * 1024 * 1024},
-        {"id": 5, "name": "Cenario 5: 4 Peers, Bloco 4KB, File 10MB", "peers": 4, "block_size": 4096, "file_size": 10 * 1024 * 1024},
-        {"id": 6, "name": "Cenario 6: 4 Peers, Bloco 4KB, File 20MB", "peers": 4, "block_size": 4096, "file_size": 20 * 1024 * 1024},
+        {"id": 3, "name": "Cenario 3: 4 Peers, Bloco 1KB, File 512KB", "peers": 4, "block_size": 1024, "file_size": 512 * 1024},
+        {"id": 4, "name": "Cenario 4: 4 Peers, Bloco 4KB, File 2MB", "peers": 4, "block_size": 4096, "file_size": 2 * 1024 * 1024},
     ]
     
     all_results = []

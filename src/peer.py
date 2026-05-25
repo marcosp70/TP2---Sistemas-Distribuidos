@@ -134,6 +134,11 @@ class PeerNode:
         Para o nó e fecha todas as conexoes.
         """
         self.is_running = False
+        if hasattr(self, 'server_sock') and self.server_sock:
+            try:
+                self.server_sock.close()
+            except Exception:
+                pass
         with self.lock:
             for conn in self.active_connections:
                 try:
@@ -187,19 +192,19 @@ class PeerNode:
 
     def _run_server(self):
         self.log(f"Servidor iniciado na porta {self.port}...")
-        server_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        server_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self.server_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.server_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         try:
-            server_sock.bind((self.ip, self.port))
-            server_sock.listen(10)
+            self.server_sock.bind((self.ip, self.port))
+            self.server_sock.listen(10)
         except Exception as e:
             self.log(f"Erro ao bindar servidor na porta {self.port}: {e}")
             return
 
         while self.is_running:
             try:
-                server_sock.settimeout(1.0)
-                sock, addr = server_sock.accept()
+                self.server_sock.settimeout(1.0)
+                sock, addr = self.server_sock.accept()
                 sock.settimeout(5.0)
                 t = threading.Thread(target=self._handle_incoming_connection, args=(sock,), daemon=True)
                 t.start()
@@ -211,7 +216,7 @@ class PeerNode:
                 break
         
         try:
-            server_sock.close()
+            self.server_sock.close()
         except Exception:
             pass
 
