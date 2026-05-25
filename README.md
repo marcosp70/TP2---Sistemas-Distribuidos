@@ -1,6 +1,6 @@
 # Compartilhamento de Arquivos Peer-to-Peer (P2P) - CEFET-MG
 
-Este repositório contém o código-fonte desenvolvido para o **Trabalho Prático 2** da disciplina de **Sistemas Distribuídos** do Centro Federal de Educação Tecnológica de Minas Gerais (CEFET-MG), período letivo 2025/2.
+Este repositório contém o código-fonte desenvolvido para o **Trabalho Prático 2** da disciplina de **Sistemas Distribuídos** do Centro Federal de Educação Tecnológica de Minas Gerais (CEFET-MG), período letivo 2026/1.
 
 O projeto consiste em um sistema simétrico e descentralizado de compartilhamento de arquivos P2P baseado em Sockets TCP multithreading em Python, desenvolvido utilizando **estritamente a biblioteca nativa do Python 3** (sem qualquer dependência externa ou necessidade de instalação de pacotes).
 
