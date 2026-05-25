@@ -67,6 +67,13 @@ class PeerNode:
         self.start_time = None
         self.end_time = None
 
+        # Configura arquivo de log
+        parent_dir = os.path.dirname(file_path)
+        if parent_dir and not os.path.exists(parent_dir):
+            os.makedirs(parent_dir, exist_ok=True)
+        self.log_file_path = os.path.join(parent_dir, f"peer_{peer_id}.log")
+        self.log_file = open(self.log_file_path, 'w', encoding='utf-8')
+
         # Configura arquivo de saida
         # Se for o Seeder inicial, o arquivo original ja deve existir e estar completo.
         # Caso contrario, criamos o arquivo vazio pre-alocado para preencher com blocos recebidos.
@@ -102,11 +109,37 @@ class PeerNode:
 
     def log(self, message):
         """
-        Imprime logs formatados e sincronizados de forma thread-safe.
+        Grava logs no arquivo de logs e imprime apenas mensagens essenciais/progresso no terminal para evitar I/O bottleneck.
         """
         timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
+        log_line = f"[{timestamp}] [Peer {self.peer_id}] {message}\n"
         with self.lock:
-            print(f"[{timestamp}] [Peer {self.peer_id}] {message}", flush=True)
+            if hasattr(self, 'log_file') and self.log_file and not self.log_file.closed:
+                try:
+                    self.log_file.write(log_line)
+                    self.log_file.flush()
+                except Exception:
+                    pass
+            
+            # Controle de exibição no terminal para manter performance ultra-alta
+            should_print = True
+            if "Solicitando bloco" in message or "recebido com sucesso" in message or "Recebido REQUEST" in message or "Enviado PIECE" in message or "HAVE" in message or "Enviando REQUEST" in message:
+                should_print = False
+                if "Progresso:" in message:
+                    try:
+                        # Extrai progresso, ex: "Progresso: 10/100"
+                        parts = message.split("Progresso: ")[1].split("/")
+                        downloaded = int(parts[0])
+                        total = int(parts[1])
+                        # Imprime de 10% em 10%
+                        step = max(1, total // 10)
+                        if downloaded % step == 0 or downloaded == total:
+                            should_print = True
+                    except Exception:
+                        should_print = True
+
+            if should_print:
+                print(f"[{timestamp}] [Peer {self.peer_id}] {message}", flush=True)
 
     def start(self):
         """
@@ -146,6 +179,11 @@ class PeerNode:
                 except Exception:
                     pass
             self.active_connections.clear()
+        if hasattr(self, 'log_file') and self.log_file:
+            try:
+                self.log_file.close()
+            except Exception:
+                pass
 
     def _recv_all(self, sock, size):
         data = bytearray()
@@ -185,6 +223,8 @@ class PeerNode:
         with self.lock:
             connections = list(self.active_connections)
         
+        if connections:
+            self.log(f"Enviando broadcast HAVE (bloco {chunk_idx}) para {len(connections)} vizinhos.")
         for conn in connections:
             conn.send(MSG_HAVE, payload)
 
@@ -273,6 +313,7 @@ class PeerNode:
                         if len(payload) < 4:
                             continue
                         chunk_idx = int.from_bytes(payload[:4], byteorder='big')
+                        self.log(f"Recebido REQUEST para bloco {chunk_idx} de Vizinho {client_peer_id}.")
                         
                         # Le e envia o bloco solicitado se tivermos ele
                         has_chunk = False
@@ -289,7 +330,8 @@ class PeerNode:
                                 
                                 # Envia bloco (PIECE: 4 bytes index + dados)
                                 piece_payload = chunk_idx.to_bytes(4, byteorder='big') + chunk_data
-                                conn.send(MSG_PIECE, piece_payload)
+                                if conn.send(MSG_PIECE, piece_payload):
+                                    self.log(f"Enviado PIECE (bloco {chunk_idx}) para Vizinho {client_peer_id}.")
                             except Exception as e:
                                 self.log(f"Erro ao ler bloco {chunk_idx} do arquivo para enviar: {e}")
                         else:
@@ -299,8 +341,7 @@ class PeerNode:
                         if len(payload) < 4:
                             continue
                         have_idx = int.from_bytes(payload[:4], byteorder='big')
-                        # Apenas registra que o vizinho agora possui este bloco
-                        pass
+                        self.log(f"Recebido HAVE para bloco {have_idx} de Vizinho {client_peer_id}.")
                 except socket.timeout:
                     continue
                     

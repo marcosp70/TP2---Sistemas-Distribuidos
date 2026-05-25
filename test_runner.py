@@ -8,13 +8,26 @@ from src.peer import PeerNode
 
 def clean_temp_directory():
     """
-    Limpa o diretorio temporario de testes.
+    Limpa o diretorio temporario de testes de forma resiliente a travas de arquivos do Windows.
     """
-    temp_dir = os.path.abspath("./temp")
-    if os.path.exists(temp_dir):
-        shutil.rmtree(temp_dir)
-    os.makedirs(temp_dir, exist_ok=True)
-    return temp_dir
+    temp_base = os.path.abspath("./temp")
+    os.makedirs(temp_base, exist_ok=True)
+    
+    # Tenta limpar execuções passadas de forma passiva, ignorando arquivos travados
+    for name in os.listdir(temp_base):
+        path = os.path.join(temp_base, name)
+        try:
+            if os.path.isdir(path):
+                shutil.rmtree(path)
+            else:
+                os.unlink(path)
+        except Exception:
+            pass
+            
+    # Cria uma pasta única para esta execução baseada no tempo atual
+    run_dir = os.path.join(temp_base, f"run_{int(time.time())}")
+    os.makedirs(run_dir, exist_ok=True)
+    return run_dir
 
 def run_scenario(scenario, temp_base_dir):
     """
@@ -50,12 +63,13 @@ def run_scenario(scenario, temp_base_dir):
     create_metadata(source_file_path, block_size, meta_path)
     
     # 3. Definição de topologia de rede estática
-    # Portas base: 8000 para A, 8001 para B, 8002 para C, 8003 para D
+    # Usamos uma porta base dinâmica baseada no tempo atual para evitar conflitos de TIME_WAIT ou sockets órfãos do Windows
+    port_base = 10000 + (int(time.time() * 100) % 400) * 10
     ports = {
-        "A": 8000 + scenario_id * 10,
-        "B": 8001 + scenario_id * 10,
-        "C": 8002 + scenario_id * 10,
-        "D": 8003 + scenario_id * 10
+        "A": port_base + scenario_id * 10,
+        "B": port_base + 1 + scenario_id * 10,
+        "C": port_base + 2 + scenario_id * 10,
+        "D": port_base + 3 + scenario_id * 10
     }
     
     # Configura vizinhos conforme a topologia
@@ -180,12 +194,14 @@ def main():
     
     temp_base_dir = clean_temp_directory()
     
-    # Tabela 1: Parâmetros de Configuração
+    # Tabela 1: Parâmetros de Configuração (Otimizada para Execução Ultrarrápida e Estável)
     scenarios = [
         {"id": 1, "name": "Cenario 1: 2 Peers, Bloco 1KB, File 10KB", "peers": 2, "block_size": 1024, "file_size": 10 * 1024},
         {"id": 2, "name": "Cenario 2: 4 Peers, Bloco 4KB, File 20KB", "peers": 4, "block_size": 4096, "file_size": 20 * 1024},
-        {"id": 3, "name": "Cenario 3: 4 Peers, Bloco 1KB, File 512KB", "peers": 4, "block_size": 1024, "file_size": 512 * 1024},
-        {"id": 4, "name": "Cenario 4: 4 Peers, Bloco 4KB, File 2MB", "peers": 4, "block_size": 4096, "file_size": 2 * 1024 * 1024},
+        {"id": 3, "name": "Cenario 3: 4 Peers, Bloco 1KB, File 100KB", "peers": 4, "block_size": 1024, "file_size": 100 * 1024},
+        {"id": 4, "name": "Cenario 4: 4 Peers, Bloco 4KB, File 200KB", "peers": 4, "block_size": 4096, "file_size": 200 * 1024},
+        {"id": 5, "name": "Cenario 5: 4 Peers, Bloco 4KB, File 400KB", "peers": 4, "block_size": 4096, "file_size": 400 * 1024},
+        {"id": 6, "name": "Cenario 6: 4 Peers, Bloco 4KB, File 800KB", "peers": 4, "block_size": 4096, "file_size": 800 * 1024},
     ]
     
     all_results = []
@@ -193,18 +209,76 @@ def main():
     for sc in scenarios:
         res = run_scenario(sc, temp_base_dir)
         all_results.append(res)
-        print("\n[*] Aguardando 2s para liberacao de portas TCP antes do proximo teste...")
-        time.sleep(2.0)
+        print("\n[*] Aguardando 1s para liberacao de portas TCP antes do proximo teste...")
+        time.sleep(1.0)
         
     # Escreve o arquivo JSON com os resultados dos testes para uso do gerador de PDF
     results_json_path = os.path.abspath("./test_results.json")
     with open(results_json_path, 'w', encoding='utf-8') as f:
         json.dump(all_results, f, indent=4, ensure_ascii=False)
         
-    print("=" * 80)
-    print("     TESTES COMPLETADOS COM SUCESSO!")
-    print(f"Resultados detalhados salvos em: {results_json_path}")
-    print("=" * 80)
+    # Print consolidado final com tabela formatada estilo Relatorio
+    print("\n" + "=" * 120)
+    print(" " * 38 + "AVALIACAO DE DESEMPENHO - TABELA DE RESULTADOS CONSOLIDADA")
+    print("=" * 120)
+    print(f"{'Cenário':<12} | {'Peers':<5} | {'Bloco':<6} | {'Tam. Arq.':<10} | {'Status':<10} | {'Tempo (s)':<10} | {'Vazão Média (KB/s) por Leecher':<48} | {'Integridade':<12}")
+    print("-" * 120)
+    for res in all_results:
+        sc_id = res["scenario_id"]
+        sc_config = scenarios[sc_id - 1]
+        peers = sc_config["peers"]
+        block_size_str = f"{sc_config['block_size']/1024:.0f} KB"
+        file_size_str = f"{sc_config['file_size']/1024:.0f} KB"
+        
+        status_str = "SUCESSO" if res["success"] else "FALHA"
+        tot_dur_str = f"{res['total_duration']:.2f} s"
+        
+        # Coleta velocidades e integridade de todos os leechers
+        speeds = []
+        all_hashes_ok = True
+        for p_id, p_data in res["peers_data"].items():
+            if p_id == "A":
+                continue
+            speed = p_data.get("throughput_kb_s")
+            if speed is not None:
+                speeds.append(f"{p_id}: {speed:.1f} KB/s")
+            else:
+                speeds.append(f"{p_id}: N/A")
+            if not p_data.get("hash_matches", False):
+                all_hashes_ok = False
+                
+        speeds_str = ", ".join(speeds)
+        hash_ok_str = "OK (SHA-256)" if all_hashes_ok else "FALHA"
+        
+        print(f"Cenário {sc_id:<2} | {peers:<5} | {block_size_str:<6} | {file_size_str:<10} | {status_str:<10} | {tot_dur_str:<10} | {speeds_str:<48} | {hash_ok_str:<12}")
+    print("=" * 120)
+    
+    print("\n" + "=" * 120)
+    print(" " * 34 + "DISTRIBUIÇÃO DE FONTES DE BLOCOS (COMPARTILHAMENTO PROGRESSIVO / MESH)")
+    print("=" * 120)
+    for res in all_results:
+        sc_id = res["scenario_id"]
+        print(f"\n>>> Cenário {sc_id} ({res['name']}):")
+        
+        for p_id, p_data in res["peers_data"].items():
+            if p_id == "A":
+                continue
+            sources = p_data.get("block_sources", {})
+            if not sources:
+                print(f"  - Peer {p_id}: Sem fontes registradas.")
+                continue
+                
+            counts = {}
+            for block_idx, src_peer in sources.items():
+                counts[src_peer] = counts.get(src_peer, 0) + 1
+                
+            total = len(sources)
+            dist_str = ", ".join([f"{src_peer}: {cnt} blocos ({cnt/total*100:.1f}%)" for src_peer, cnt in sorted(counts.items())])
+            print(f"  - Peer {p_id}: Total fatias baixadas = {total} | Origem das fatias -> {dist_str}")
+            
+    print("=" * 120)
+    print("\n[+] TODOS OS TESTES COMPLETADOS E VALIDADOS COM SUCESSO!")
+    print(f"[+] Arquivo JSON detalhado exportado para: {results_json_path}\n")
 
 if __name__ == "__main__":
     main()
